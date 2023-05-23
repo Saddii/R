@@ -1,0 +1,322 @@
+\documentclass[12pt, a4paper]{article}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% dodatkowe pakiety LaTeX'a
+\usepackage[OT4]{polski}
+\usepackage[utf8]{inputenc}
+\usepackage[top=2.5cm, bottom=2.5cm, left=2cm, right=2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[colorlinks=true, linkcolor=blue]{hyperref}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ustawienia globalne
+<<ustawienia_globalne, echo=FALSE>>=
+library(knitr)
+library(xtable)
+opts_chunk$set(fig.path='figure/', fig.align='center', fig.pos='H',fig.width=5, fig.height=4)
+library(ggplot2)
+@
+
+\begin{document}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% strona tytulowa
+\title{Raport 1}
+\author{SD}
+\maketitle
+\tableofcontents
+
+\section{Opis eksperymentów}
+Celem sprawozdzania jest odnalezienie przyczyny odejścia klientów. Do zbadania tego zjawiską zostaną użyte następujące narzędzia:
+\begin{itemize}
+	\item Podstawowe wskaźniki sumaryczne.
+	\item Metody graficzne: Wykresy słupkowe, rozrzutu oraz pudełkowe.
+\end{itemize}
+
+\section{Etap.1}
+<<Etap 1, echo=TRUE, eval=TRUE, results='asis'>>=
+dane <- read.csv(file="WA_Fn-UseC_-Telco-Customer-Churn.csv", stringsAsFactors = TRUE)
+
+attach(dane)
+dane$SeniorCitizen <- as.factor(dane$SeniorCitizen) 
+#Powinna być to zmienna jakościowa więc musimy ją zamienić.
+dim(dane) #liczba przypadków/cech
+
+sum(sapply(dane, is.factor)) #ile cech jakościowych
+sum(sapply(dane, is.numeric)) #ile cech ilościowych
+sum(sapply(dane, is.nan)) #Sprawdzamy czy jakaś kolumna jest pusta
+
+which(sapply(dane, is.numeric) == TRUE) 
+#Poszczgólne cechy ilościowe. 
+#Pozostałe dane mają typ jakościowy.
+
+dane <- dane[-1] #usuwamy kolumne z identyfikatorem klienta.
+
+# 11 brakujących obserwacje znajdują się w kolumnie TotalCharges
+which(is.na(dane), arr.ind=TRUE)
+
+
+
+
+
+@
+\section{Etap.2a}
+<<Etap 2a, echo=FALSE, eval=TRUE,results='asis'>>=
+my.summary<-function(x)
+{
+  wskazniki <- c(Min=min(x, na.rm =TRUE), Max=max(x, na.rm =TRUE),
+              Średnia=mean(x, na.rm =TRUE), Mediana=median(x, na.rm =TRUE),
+              War.=var(x, na.rm =TRUE), Odch.St=sd(x,na.rm = TRUE),Q1_=quantile(x,.25),Q3_=quantile(x,.75),Rozstęp=max(x, na.rm =TRUE)-min(x, na.rm =TRUE))
+
+  return(wskazniki)
+}
+
+d1<-my.summary(dane$tenure)
+d2<-my.summary(dane$MonthlyCharges)
+d3<-my.summary(dane$TotalCharges[which(!is.na(dane$TotalCharges))])
+
+
+
+tab1 <- xtable(t(d1), digits = 2, row.names = TRUE, caption = "Podstawowe wskaźniki sumaryczne względem kolumny tenure.", label = "tab:tabela1")
+print(tab1, type = "latex", table.placement = "H")
+tab2 <- xtable(t(d2), digits = 2, row.names = TRUE, caption = "Podstawowe wskaźniki sumaryczne względem kolumny MonthlyCharges", label = "tab:tabela1")
+print(tab2, type = "latex", table.placement = "H")
+tab3 <- xtable(t(d3), digits = 2, row.names = TRUE, caption = "Podstawowe wskaźniki sumaryczne względem kolumny TotalCharges.", label = "tab:tabela1")
+print(tab3, type = "latex", table.placement = "H")
+
+@
+
+\section{Etap.2b Zmienna Ilościowe}
+<<Etap 2b.ilosciowe, echo=FALSE, eval=TRUE>>=
+
+
+boxplot(dane[,"tenure"], col="lightblue",main="Wykres pudełkowy względem kolumny tenure.",horizontal= TRUE)
+boxplot(dane[,"MonthlyCharges"], col="lightblue",main="Wykres pudełkowy względem kolumny MonthlyCharges.",horizontal= TRUE)
+
+boxplot(dane[,"TotalCharges"], col="lightblue",main="Wykres pudełkowy względem kolumny TotalCharges.",horizontal= TRUE)
+@
+
+<<Etap 2b, echo=FALSE, eval=TRUE>>=
+
+x=summary(dane$SeniorCitizen)
+
+liczba_osob <- c(Female = 3488, Male = 3555)
+Senior <- c(Reszta=x[1],Seniorzy=x[2])
+layout(matrix(c(1,1,2,3), 2, 2, byrow = TRUE))
+barplot(liczba_osob, 
+        main = "Klienci względem płci", 
+        ylab = "Liczba osób", 
+        col = c("pink", "blue"))
+barplot(Senior,
+        main = "Liczba Seniorów",  
+        ylab = "Liczba osób", 
+        col = c("black", "grey"))
+wykresy <- function(x, varname,kolor,xlabel="brak usługi") {
+  summary_stats <- summary(x)
+  barplot(summary_stats,xlab=xlabel, main = varname,col=kolor, ylab = "Liczba osób")
+  
+}
+wykresy(dane$Partner, "Partner",c("black","grey"),xlabel=NULL)
+wykresy(dane$Dependents, "Dependents",c("black","grey"),xlabel=NULL)
+wykresy(dane$PhoneService, "Phone Service",c("black", "grey"),xlabel=NULL)
+wykresy(dane$MultipleLines, "MultipleLines",c("black", "brown","grey"))
+wykresy(dane$InternetService, "Internet Service",c("black", "green","grey"),xlabel=NULL)
+wykresy(dane$OnlineBackup, "OnlineBackup",c("black", "brown","grey"))
+wykresy(dane$OnlineSecurity, "OnlineSecurity",c("black", "brown","grey"))
+wykresy(dane$OnlineBackup, "OnlineBackup",c("black", "brown","grey"))
+wykresy(dane$DeviceProtection, "Device Protection",c("black", "brown","grey"))
+wykresy(dane$TechSupport, "TechSupport",c("black", "brown","grey"))
+wykresy(dane$StreamingMovies, "StreamingMovies",c("black", "brown","grey"))
+wykresy(dane$StreamingTV, "StreamingTV",c("black", "brown","grey"))
+wykresy(dane$Contract, "Contract",c("black", "brown","grey"))
+wykresy(dane$PaperlessBilling, "PaperlessBilling",c("black","grey"),xlabel = NULL)
+wykresy(dane$Churn, "Churn",c("black","grey"),xlabel = NULL)
+@
+<<Etap 2c, echo=FALSE, eval=TRUE>>=
+pairs(cbind(tenure, MonthlyCharges, TotalCharges))
+title(main="Wykresy rozrzutu",line=3)
+@
+
+
+<<Etap 2d, echo=FALSE, eval=TRUE>>=
+dens<-density(dane$tenure)
+plot(dens, main = "Wykres gęstości tenure", xlab = "Wartości zmiennej", ylab = "Gęstość")
+dens<-density(dane$MonthlyCharges)
+plot(dens, main = "Wykres gęstości MonthlyCharges", xlab = "Wartości zmiennej", ylab = "Gęstość")
+dens<-density(dane$TotalCharges[which(!is.na(dane$TotalCharges))])
+plot(dens, main = "Wykres gęstości TotalCharges", xlab = "Wartości zmiennej", ylab = "Gęstość")
+@
+
+\section{Etap 2c Wnioski}
+Wiadać korelacje miedzy tenure a TotalCharges. Wnioskując z wykresu- im dłużej ktoś jest klientem tym więcej ma opłat ogółem.
+\section{Etap 2d Wnioski}
+\begin{itemize}
+	\item Zakres dla zmiennych jakościowych to min-max, a dla zmiennych jakościowych został przedstawiony na wykresach kolumnowych.
+	\item Wykres gestosci MonthlyCharges oraz TotalCharges nie jest symetryczny więc nie ma rozkladu symetrycznego.
+	\item Największa zmiennością charakteryzuje się zmienna TotalCharges, ponieważ odchylenie standardowe jest najwieksze.
+	\item Częstość:
+	\begin{itemize}
+	\item Liczba kobiet jest podobna do liczby mężczyzn
+	\item Seniorzy są w mniejszości
+	\item Liczba klientów ktorzy mają partnera jest podobna do tych bez.
+	\item Większośc klientów ma usługę telefoniczna.
+	\item Większośc klientów ma usługe Fiber optic.
+	\item Większość klinetów nie posiada usługi OnlineBackup, OnlineSecurity, Device Protection,techSupport,StreamingMovies,StreamingTv.
+	\item Wiekszośc klientów posiada kontrakt na miesiąc.
+	\item Większosć klientów otrzymuję elektroniczny rachunek.
+	\end{itemize}
+\end{itemize}
+
+<<Etap 3a Tabele, echo=FALSE, eval=TRUE,results='asis'>>=
+Churn_y <- dane[which(dane$Churn=="Yes"),]
+Churn_n <- dane[which(dane$Churn=="No"),]
+d1<-my.summary(Churn_y$tenure)
+d2<-my.summary(Churn_y$MonthlyCharges)
+d3<-my.summary(Churn_y$TotalCharges)
+d4<-my.summary(Churn_n$tenure)
+d5<-my.summary(Churn_n$MonthlyCharges)
+d6<-my.summary(Churn_n$TotalCharges[which(!is.na(Churn_n$TotalCharges))])
+
+
+
+tab1 <- xtable(t(d1), digits = 2, row.names = TRUE, caption = "Klienci którzy zrezygnowali względem kolumny tenure.", label = "tab:tabela1")
+
+tab2 <- xtable(t(d2), digits = 2, row.names = TRUE, caption = " Klienci którzy zrezygnowali względem kolumny MonthlyCharges.", label = "tab:tabela1")
+
+tab3 <- xtable(t(d3), digits = 2, row.names = TRUE, caption = "Klienci którzy zrezygnowali względem kolumny TotalCharges.", label = "tab:tabela1")
+
+
+tab4 <- xtable(t(d4), digits = 2, row.names = TRUE, caption = "Aktywni Klienci względem kolumny tenure.", label = "tab:tabela1")
+
+tab5 <- xtable(t(d5), digits = 2, row.names = TRUE, caption = "Aktywni klienci względem kolumny MonthlyCharges.", label = "tab:tabela1")
+
+tab6 <- xtable(t(d6), digits = 2, row.names = TRUE, caption = "Aktywni klienci względem kolumny TotalCharges.", label = "tab:tabela1")
+
+print(tab1, type = "latex", table.placement = "H")
+print(tab4, type = "latex", table.placement = "H")
+
+print(tab2, type = "latex", table.placement = "H")
+print(tab5, type = "latex", table.placement = "H")
+
+print(tab3, type = "latex", table.placement = "H")
+print(tab6, type = "latex", table.placement = "H")
+
+
+@
+\section{Etap 3a}
+<<Etap 3a Wykresy, echo=FALSE, eval=TRUE,results='asis'>>=
+par(mfrow=c(2,2))
+n=summary(Churn_n$SeniorCitizen)
+y=summary(Churn_y$SeniorCitizen)
+summary(Churn_n$SeniorCitizen)
+summary(Churn_n$gender)
+summary(Churn_y$gender)
+
+liczba_osob_n <- c(Female = 2549, Male = 2625)
+liczba_osob_y <- c(Female = 939, Male = 930)
+
+Senior_n <- c(Reszta=n[1],Seniorzy=n[2])
+Senior_y <- c(Reszta=y[1],Seniorzy=y[2])
+
+barplot(liczba_osob_n, 
+        main = "Aktywni Klienci względem płci", 
+        ylab = "Liczba osób", 
+        col = c("pink", "blue"))
+barplot(liczba_osob_y, 
+        main = "Klienci którzy zrezygnowali względem płci", 
+        ylab = "Liczba osób", 
+        col = c("pink", "blue"))
+barplot(Senior_n,
+        main = "Aktywni Seniorów",  
+        ylab = "Liczba osób", 
+        col = c("black", "grey"))
+barplot(Senior_y,
+        main = "Seniorzy którzy zrezygnowali",  
+        ylab = "Liczba osób", 
+        col = c("black", "grey"))
+wykresy(Churn_n$Partner, "Partner Churn_n",c("black","grey"),xlabel=NULL)
+wykresy(Churn_y$Partner, "Partner Churn_y",c("black","grey"),xlabel=NULL)
+
+
+wykresy(Churn_n$Dependents, "Dependents Churn_n",c("black","grey"),xlabel=NULL)
+wykresy(Churn_y$Dependents, "Dependents Churn_y",c("black","grey"),xlabel=NULL)
+
+wykresy(Churn_n$PhoneService, "Phone Service Churn_n",c("black", "grey"),xlabel=NULL)
+wykresy(Churn_y$PhoneService, "Phone Service Churn_y",c("black", "grey"),xlabel=NULL)
+
+wykresy(Churn_n$MultipleLines, "MultipleLines Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$MultipleLines, "MultipleLines Churn_y",c("black", "brown","grey"))
+
+
+wykresy(Churn_n$InternetService, "Internet Service Churn_n",c("black", "green","grey"),xlabel="Fibre")
+wykresy(Churn_y$InternetService, "Internet Service Churn_y",c("black", "green","grey"),xlabel="Fibre")
+
+wykresy(Churn_n$OnlineBackup, "OnlineBackup Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$OnlineBackup, "OnlineBackup Churn_y",c("black", "brown","grey"))
+
+
+wykresy(Churn_n$OnlineSecurity, "OnlineSecurity Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$OnlineSecurity, "OnlineSecurity Churn_y",c("black", "brown","grey"))
+
+
+wykresy(Churn_n$DeviceProtection, "Device Protection Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$DeviceProtection, "Device Protection Churn_y",c("black", "brown","grey"))
+
+
+wykresy(Churn_n$TechSupport, "TechSupport Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$TechSupport, "TechSupport Churn_y",c("black", "brown","grey"))
+
+wykresy(Churn_n$StreamingMovies, "StreamingMovies Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$StreamingMovies, "StreamingMovies Churn_y",c("black", "brown","grey"))
+
+
+wykresy(Churn_n$Contract, "Contract Churn_n",c("black", "brown","grey"))
+wykresy(Churn_y$Contract, "Contract Churn_y",c("black", "brown","grey"))
+
+wykresy(Churn_n$PaperlessBilling, "PaperlessBilling Churn_n",c("black","grey"),xlabel = NULL)
+wykresy(Churn_y$PaperlessBilling, "PaperlessBilling Churn_y",c("black","grey"),xlabel = NULL)
+
+@
+\section{Etap 3b}
+Klienci którzy zrezygnowali:
+\begin{itemize}
+\item Częściej nie mają partnera.
+\item W większości korzystali z usługi Fibre.
+\item Rzadko korzystali z pomocy technicznej.
+\item W większosci mieli umowę na miesiąc.
+\end{itemize}
+
+\section{Podsumowanie}
+\subsection{Etap 4a}
+Najważniejsze wnioski, jakie udało się wysnuć na podstawie przeprowadzonych analiz:
+\begin{itemize}
+\item Wysoka wariancja względem TotalCharges
+\item Ponad połowa klientów korzysta z usług firmy od więcej niż 30 miesięcy.
+\item Zakres miesięcznych wydatków klentów mieści się w przedziale 20-120.
+\item Ponad połowa klientów wydała wiecej niż 2000 na usługi firmy, a  25\% wydało wiecej niż 4000.
+
+\end{itemize}
+
+\subsection{Etap 4b}
+Z danych dowiadujemy się, że liczba klientek jest praktycznie równa liczbie klientów. Główną produktem u klientów są usługi telefoniczne, oraz internet, który jest w głownej mierze zapewniany poprzez technologie Fiber optic. Dużą popularność ma rownież usługa StreamingTV. Klienci w głównej mierze rezygnują z papierowych rachunków.
+\subsection{Etap 4c}
+Powody rezygnacji:
+\begin{itemize}
+\item Brak korzystnych ofert dla osób bez partera.
+\item Problem z usługa Fibre optic.
+\item Brak kontaktu z klientem w trakcie awarii.
+\item Umowa na krótki okres.
+\end{itemize}
+
+Aby klienci przestali odchodzić należy:
+\begin{itemize}
+\item Stworzyć więcej ofert dla singli.
+\item Przeciwdziałać awarii Fibre Optic lub poprawić działanie tej usłgui.
+\item W trakcie awarii kontaktować się z klientami.
+\item Nakłaniać klientów na dłuzszy okres trwania umowy.
+\end{itemize}
+\end{document}
