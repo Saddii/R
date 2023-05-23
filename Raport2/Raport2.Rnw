@@ -1,0 +1,476 @@
+\documentclass[12pt, a4paper]{article}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% dodatkowe pakiety LaTeX'a
+\usepackage[OT4]{polski}
+\usepackage[utf8]{inputenc}
+\usepackage[top=2.5cm, bottom=2.5cm, left=2cm, right=2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[colorlinks=true, linkcolor=blue]{hyperref}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ustawienia globalne
+<<ustawienia_globalne, echo=FALSE,include=FALSE>>=
+options(warn=-1)
+library(ggplot2)
+library(corrplot)
+library(knitr)
+library(xtable)
+library(factoextra)
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(MASS)
+library(cluster)
+opts_chunk$set(fig.path='figure/', fig.align='center', fig.pos='H',fig.width=5, fig.height=4)
+@
+
+\begin{document}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% strona tytulowa
+\title{Raport 2}
+\author{SD}
+\maketitle
+\tableofcontents
+
+\section{Analiza składowych głównych}
+<<Etap 1, echo=TRUE, eval=TRUE, results='asis'>>=
+dane <- read.csv(file="uaScoresDataFrame.csv", stringsAsFactors = TRUE)
+
+dane <- dane[2:21]#Usuwamy kolumnę z identyfikatorem kraju.
+
+dim(dane) #liczba przypadków/cech.
+
+sum(sapply(dane, is.factor)) #ile cech jakościowych.
+sum(sapply(dane, is.numeric)) #ile cech ilościowych.
+sum(sapply(dane, is.nan)) #Sprawdzamy czy jakaś kolumna jest pusta.
+
+names(which(sapply(dane, is.numeric) == TRUE)) #Poszczgólne cechy ilościowe. 
+#Pozostałe dane mają typ jakościowy.
+
+dane_ilosciowe <- dane[, 4:20]
+dim(dane_ilosciowe)
+
+# Rysowanie wykresów boxplot dla wszystkich kolumn jednocześnie
+@
+<<Standaryzacja, echo=FALSE, eval=TRUE, results='asis'>>=
+boxplot(dane_ilosciowe[, 1:17],las=2, col = "lightblue", main = "Wykresy pudełkowe zmiennych ilościowych")
+dane.stand.ilosciowe <- scale(dane_ilosciowe[, 1:17])
+boxplot(dane.stand.ilosciowe,las=2, col = "lightblue", main = "Zmienne ilościowe po standaryzacji")
+
+dane.pca <- prcomp(dane_ilosciowe,scale.=T,center=T,retx=T)#Składowe główne
+
+boxplot(dane.pca$x,main="Wykres pudełkowy składowych głównych.") #Wykres pudełkowy skladowych głównych
+#Wektory ładunków dla PC1 PC2 PC3
+
+df <- as.data.frame.matrix(dane.pca$rotation[,1:3])
+rownames(df) <- rownames(dane.pca$rotation)
+colnames(df) <- c("PC1", "PC2", "PC3")
+tbl <- xtable(df, caption = "Wektory ładunków dla PC1, PC2, i PC3.", label = "tab:ladunki")
+print(tbl,type = "latex",table.placement = "H", caption.placement = "top")
+@
+<<Wyjasnienie Wariancji, echo=FALSE, eval=TRUE, results='asis'>>=
+variance <-(dane.pca$sdev^2/sum(dane.pca$sdev^2))
+cumulative.variance <- cumsum(variance)
+
+barplot(cumulative.variance,names.arg = 1:17, main="Skumulowana wariancja")
+abline(h=0.8, col ="red")
+abline(h=0.9, col="green")
+cat("Potrzeba 7 składowych głównych aby wyjasnić 80\\% przypadków, oraz 10 skladowych aby wyjaśnić 90\\% przypakdów.")
+@
+
+
+<<2D, echo=FALSE, eval=FALSE, results='asis'>>=
+funkcja <-function(Nazwa_Kontynentu,n){
+  zwracane_dane<-dane.pca$x[,n]
+  for (i in 1:266){
+  if (dane$UA_Continent[i]!=Nazwa_Kontynentu)
+  {zwracane_dane[i]=NA
+  }
+    }
+  return(zwracane_dane)
+  }
+
+fig <-plot_ly(type='scatter',mode ='markers')
+fig <- fig %>%
+  add_trace(
+    x = funkcja("Africa",1),
+    y = funkcja("Africa",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Afryka"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja("Europe",1),
+    y = funkcja("Europe",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Europa"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja("Asia",1),
+    y = funkcja("Asia",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Azja"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja("North America",1),
+    y = funkcja("North America",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Północna Ameryka"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja("South America",1),
+    y = funkcja("South America",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Południowa Ameryka"
+    )
+fig <-fig%>%
+  add_trace(
+    x = funkcja("Oceania",1),
+    y = funkcja("Oceania",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Oceania"
+    )
+fig
+@
+
+<<3D, echo=FALSE, eval=FALSE, results='asis'>>=
+fig <-plot_ly(type="scatter3d",mode="markers")
+fig <- fig %>%
+  add_trace(
+    x = funkcja("Africa",1),
+    y = funkcja("Africa",2),
+    z = funkcja("Africa",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Afryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja("Europe",1),
+    y = funkcja("Europe",2),
+    z = funkcja("Europe",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Europa"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja("Asia",1),
+    y = funkcja("Asia",2),
+    z = funkcja("Asia",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Azja"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja("North America",1),
+    y = funkcja("North America",2),
+    z = funkcja("North America",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Północna Ameryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja("South America",1),
+    y = funkcja("South America",2),
+    z = funkcja("South America",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Południowa Ameryka"
+    )
+
+fig <- fig %>%
+  add_trace(
+    mode="markers",
+    x = funkcja("Oceania",1),
+    y = funkcja("Oceania",2),
+    z = funkcja("Oceania",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Oceania"
+    )
+
+fig <- fig %>% layout(scene = list(xaxis = list(title = 'MDS1'),
+                     yaxis = list(title = 'MDS2'),
+                     zaxis = list(title = 'MDS3')))
+fig
+@
+\subsection{Wykresy rozrzutu PCA}
+<<Wnioski wykresy rozrzutu, echo=FALSE, eval=TRUE, results='asis',fig.cap="Wykres rozrzutu uzyskany za pomocą PCA">>=
+
+knitr::include_graphics("Rozrzut2D_PCA.png")
+cat("Obserwując wykres 2D wykorzystujący dwie składowe główne lub 3D wykorzystujący 3 składowe można dojść do wniosku, że miasta układają się w grupy zarówno względem kontynentu jak i państwa w którym się znajdują. Przypadki odstające opisze poniżej: ")
+
+knitr::include_graphics("North-South.png")
+cat("San Jose, Guatemala City, Havana, San Juan, San Salvador, Kingston, Santo Domingo, Guadalajara, Mexico City to obiekty odstające od grupy Północna Ameryka, jednocześnie obserwacje te znajdują się bardzo blisko grupy punktów z Południowej Ameryki, zbliżony rozrzut najpewniej jest spowodowany tym, że miasta te znajdują się w Ameryce Środkowej.")
+
+knitr::include_graphics("Europa.png")
+cat("Obserwując rozrzut miast Europy w dla dwóch zmiennych składowych można zaobserwować odstające miasta takie jak: Londyn, Berlin, Paryż, Moskwa ich cecha wspólną jest fakt, że są to stolice. Na wykresie 3d mozna również zaobserować że miasta takie jak Giblartar, Andora, Valletta też odstają, cechą charakterystyczną tych miast jest to, że znajdują się w najmniejszych państwach Europy. ")
+
+knitr::include_graphics("Asia-Oceania.png")
+cat("Hong Kong, Singapur, Tokyo, Seoul, Fukuoka, Kyoto, Osaka, Tajpej to miasta z Azji najbardziej odstające. Jednocześnie zbliżone są one do punktów oznaczających miasta Oceanii. Miasta te mają wiele podobieńśtw: są położone na wyspach lub na wybrzeżu, pod względem rzeczywistej odległości znajdują się blisko Oceanii co może tłumaczyć ich zbliżone wartości na wykresie. Odstającą wartością jest również Tashkent znajdujący się w Uzbekistanie. Można również zauważyć, że obserwacje miast które znajdują się w jednym państwie jak Japonia, Indie lub Chiny znajdują się również blisko siebie, więc tu również można zaobserować, że miasta grupują się względem kraju w którym się znajdują.")
+@
+
+<<3D Biplot, echo=FALSE, eval=FALSE, results='asis',fig.width=10,fig.height=10>>=
+pca <- princomp(dane.stand.ilosciowe, scores=T, cor=T)
+scores <- pca$scores
+x <- scores[,1]
+y <- scores[,2]
+z <- scores[,3]
+
+loads <- pca$loadings
+p <- plot_ly() %>%
+  add_trace(x=x, y=y, z=z,
+            type="scatter3d", mode="markers",
+            text=paste(dane$UA_Country,dane$UA_Name),
+            name=dane$UA_Continent,
+            opacity=0.5)
+scale.loads <- 5
+
+for (k in 1:nrow(loads)) {
+   x1 <- c(0, loads[k,1]*2)*scale.loads
+   y1 <- c(0, loads[k,2]*2)*scale.loads
+   z1 <- c(0, loads[k,3]*2)*scale.loads
+   p <- p %>% add_trace(x=x1, y=y1, z=z1,
+            type="scatter3d", mode="lines",
+            line = list(width=8),
+            name=colnames(dane_ilosciowe)[k],
+            opacity = 1) 
+}
+print(p)
+
+@
+<<Biplot oraz corrplot, echo=FALSE, eval=TRUE,fig.width=10,fig.height=10>>=
+fviz_pca_biplot(dane.pca, label="var", col.ind = dane$UA_Continent,labelsize =4)
+@
+<<Wnioski biplot, echo=FALSE, eval=TRUE, results='asis'>>=
+cat("Obserwując biplot możemy dostrzec, że występuje bardzo duża dodatnia korelacja pomiędzy Environmental.Quality, a Healthcare natomiast te dwie zmienne są ujemnie skorelowane z Cost.of.Living. Kolejną dodatnią korelacje możemy zaobserować pomiędzy Venture capital i startups, można również zaobserować ujemną korelację tych dówch zmiennych z Taxation. Ujemna korelacja widocznia jest również między Economy a Housing.")
+
+@
+<<Corrplot, echo=FALSE, eval=TRUE, results='asis',fig.width=10,fig.height=10>>=
+corrplot(cor(dane_ilosciowe))
+@
+<<Wnioski corplot, echo=FALSE, eval=TRUE, results='asis'>>=
+cat("Porównując do macierzy korelacji wnioski które się powtrzają to: Venture.Capital dodatnio skorelowane z Startups, Housing ujemna  korelacja z Economy.")
+@
+\subsection{Podsumowanie PCA}
+<<Podsumowanie,echo=FALSE, eval=TRUE,results='asis'>>=
+cat("Opisane analizy dotyczą wykorzystania dwóch metod wizualizacji wielowymiarowych danych - biplotów i wykresów 2D/3D. W przypadku wykresów dotyczących miast na różnych kontynentach, zauważono, że miasta grupują się względem kontynentu i państwa, a obserwacje odstające, takie jak stolice lub miasta w małych państwach, mogą być wyjaśnione tą przynależnością.
+W tym przypadku zastosowanie standaryzacji nie miało wpływu na otrzymane wyniki i wnioski, ponieważ wszystkie zmienne w danych były wyrażone w tej samej skali.
+Podsumowując, wykorzystanie biplotów i wizualizacji wielowymiarowych danych może pomóc w zrozumieniu wzajemnych relacji między zmiennymi oraz identyfikacji obserwacji odstających i grupowania się danych względem różnych kategorii. ")
+@
+\section{MDS}
+\subsection{Diagramy Sheparda dla wymiarów 1-9}
+<<MDS, echo=FALSE, eval=TRUE, results='asis'>>=
+n <- dim(dane)[1]
+n.subset <- 60
+subset.index <- sample(1:n, n.subset) 
+
+dane.subset <- dane[subset.index,]
+data.mds <- dane.subset
+
+dissimilarities <- daisy(data.mds, stand=T)
+dis.matrix <- as.matrix(dissimilarities)
+
+mds.k2 <- cmdscale(dis.matrix, k=2)
+# obliczamy odległości euklidesowe w nowej przestrzeni
+dist.mds.k2 <- dist(mds.k2, method="euclidean")
+dist.mds.k2 <- as.matrix(dist.mds.k2)
+# kryterium STRESS
+dis.original <- dis.matrix
+STRESS <- sum((dis.original-dist.mds.k2)^2)
+
+@
+<<Diagramy Sheparda 1-9, echo=FALSE, eval=TRUE, results='asis',fig.height=10,fig.width=10>>=
+d.max <- 9
+stress.vec <- numeric(d.max)
+
+par(mfrow=c(3,3))
+
+
+for (d in 1:d.max)
+{
+    mds.k <- cmdscale(dis.matrix, k = d)
+    dist.mds.k <- dist(mds.k, method="euclidean") # odległości w nowej przestrzeni
+    dis.original <- dis.matrix
+    dist.mds.k <- as.matrix(dist.mds.k)
+    STRESS <- sum((dis.original-dist.mds.k)^2)
+
+    stress.vec[d] <- STRESS
+
+    # Diagram Sheparda
+    plot(dis.original,dist.mds.k, main=paste0("Shepard diagram (d=",d,")"),
+         cex=0.5, xlab = "original distance",  ylab="distance after MDS")
+    abline(coef=c(0,1), col="red", lty=2)
+    grid()
+    legend(x="topleft",legend=paste("STRESS = ",signif(STRESS,3)), bg="azure2")
+}
+
+par(mfrow=c(1,1))
+
+
+plot(1:d.max, stress.vec, lwd=2, type="b", pch=19, xlab="dimension (d)", ylab="STRESS")
+title("STRESS vs. dimension")
+grid()
+cat("Interpretując diagramy Sheparda oraz kryterium STRESS wymiar d=3 wydaje się być optymalny. ")
+
+
+mds.results <- cmdscale(dist.mds.k2, k=2)
+data.mds <- dane
+dissimilarities <- daisy(data.mds, stand=T)
+dis.matrix <- as.matrix(dissimilarities)
+mds.k2 <- cmdscale(dis.matrix, k=2)
+# obliczamy odległości euklidesowe w nowej przestrzeni
+dist.mds.k2 <- dist(mds.k2, method="euclidean")
+dist.mds.k2 <- as.matrix(dist.mds.k2)
+mds.results <- cmdscale(dist.mds.k2, k=2)
+@
+\subsection{Wykresy rozrzutu MDS}
+<<MDS R2 i R3, echo=FALSE, eval=FALSE, results='asis',fig.height=10>>=
+funkcja2<-function(x,n){
+  id=as.vector(names(mds.results[,n]))
+  zwracane_dane<-mds.results[,n]
+  for (i in 1:266){
+    if(dane$UA_Continent[as.integer(id[i])]!=x){
+      zwracane_dane[i]=NA
+    }}
+  return(zwracane_dane)
+}
+
+fig <-plot_ly(type='scatter',mode ='markers')
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("Africa",1),
+    y = funkcja2("Africa",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Afryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("Europe",1),
+    y = funkcja2("Europe",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Europa"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja2("Asia",1),
+    y = funkcja2("Asia",2),
+    text = paste(dane$UA_Country,dane$UA_Name),
+    name="Azja"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("North America",1),
+    y = funkcja2("North America",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Północna Ameryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("South America",1),
+    y = funkcja2("South America",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Południowa Ameryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("Oceania",1),
+    y = funkcja2("Oceania",2),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Oceania"
+    )
+fig
+
+
+mds.results <- cmdscale(dis.matrix, k=3) # mapowanie do przestrzeni trójwymiarowej
+fig <-plot_ly(type="scatter3d",mode="markers")
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("Africa",1),
+    y = funkcja2("Africa",2),
+    z = funkcja2("Africa",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Afryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("Europe",1),
+    y = funkcja2("Europe",2),
+    z = funkcja2("Europe",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Europa"
+    )
+fig <- fig %>%
+  add_trace(
+    x = funkcja2("Asia",1),
+    y = funkcja2("Asia",2),
+    z = funkcja2("Asia",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Azja"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("North America",1),
+    y = funkcja2("North America",2),
+    z = funkcja2("North America",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Północna Ameryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("South America",1),
+    y = funkcja2("South America",2),
+    z = funkcja2("South America",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Południowa Ameryka"
+    )
+fig <- fig %>%
+  
+  add_trace(
+    x = funkcja2("Oceania",1),
+    y = funkcja2("Oceania",2),
+    z = funkcja2("Oceania",3),
+    text=paste(dane$UA_Country,dane$UA_Name),
+    name="Oceania"
+    )
+
+
+fig <- fig %>% layout(scene = list(xaxis = list(title = 'MDS1'),
+
+                     yaxis = list(title = 'MDS2'),
+
+                     zaxis = list(title = 'MDS3')))
+fig
+
+@
+<<Wnioski wykresy rozrzutu MDS, echo=FALSE, eval=TRUE, results='asis',fig.cap="Wykres rozrzutu uzyskany za pomocą MDS">>=
+
+knitr::include_graphics("Rozrzut2D_MDS.png")
+knitr::include_graphics("Rozrzut3D_MDS.png")
+cat("Podobnie jak w metodzie PCA widać, że miasta układają się w grupy zarówno względem kontynentu jak i państwa w którym się znajdują. Jednak w porównaniu do pca podział na grupy względem kontynentu czy państwa zdaje się być wyraźniejszy. Obserwacje odstające są takie same jak w przypadku PCA jednak nie odstają już tak wyraźnie jak w przypadku PCA.")
+knitr::include_graphics("North-South_MDS.png")
+knitr::include_graphics("Asia-Oceania_MDS.png")
+@
+\section{Podsumowanie}
+<<Podsumowanie: , echo=FALSE, eval=TRUE,results='asis'>>=
+cat("Można zauważyć podobieństwo między metodą PCA a badaniami grupowymi miast, ponieważ obie metody pozwalają na zidentyfikowanie wzorców w danych i grupowanie ich na podstawie tych wzorców. Jednak w przypadku grupowania miast, podział na grupy względem kontynentów i państw wydaje się być bardziej wyraźny w metodzie MDS. Obserwacje odstające są podobne w obu metodach, ale w grupowaniu miast nie są one tak wyraźnie widoczne jak w PCA.")
+
+@
+\end{document}
