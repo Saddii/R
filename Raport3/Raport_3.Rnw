@@ -1,0 +1,490 @@
+\documentclass[12pt, a4paper]{article}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% dodatkowe pakiety LaTeX'a
+\usepackage[OT4]{polski}
+\usepackage[utf8]{inputenc}
+\usepackage[top=2.5cm, bottom=2.5cm, left=2cm, right=2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[colorlinks=true, linkcolor=blue]{hyperref}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ustawienia globalne
+<<ustawienia_globalne, echo=FALSE, warning=FALSE>>=
+library(knitr)
+library(xtable) #pakiet do tworzenia tabel w formacie LaTeX'a
+library(ipred)
+library(e1071)
+library(DataExplorer)
+library(MASS)
+library(class)
+library(mlbench)
+library(rpart)
+library(rpart.plot)
+
+opts_chunk$set(fig.path='figure/', fig.align='center', fig.pos='H',fig.width=5, fig.height=4)
+# UWAGA: w razie potrzeby można zmieniać te ustawienia w danym chunk'u!
+@
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% strona tytulowa
+\title{Raport 3}
+\author{Dominik Ochej\\ 268838}
+\maketitle
+\tableofcontents
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Wstęp}
+Raport będzie dotyczył poznania metod klasyfikacji takich jak:
+\begin{itemize}
+\item Regresja liniowa
+\item Algorytm k najbliższych sąsiadów
+\item Drzewa klasyfikacyjne
+\item Naiwny klasyfikator bayesowski.
+\end{itemize}
+Następnie metody te będą porównane na przykladowych danych.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Klasyfikacja na bazie modelu regresji liniowej}
+<<Zadanie1, echo=TRUE>>=
+#W pierwszym zdaniu pracujemy na danych dotyczących irysów.
+data(iris)
+head(iris)
+
+#Zmienne objaśniające
+names(which(sapply(iris, is.numeric) == TRUE))
+p<-length(names(which(sapply(iris, is.numeric) == TRUE)))
+etykietki.klas <- iris$Species
+
+#liczba obiektów-150
+(n<-length(etykietki.klas))
+
+#Liczba klas-3
+(K<-length(levels(etykietki.klas)))
+#Obserwacje są po równo podzielone między trzy klasy
+plot(etykietki.klas)
+
+set.seed(1)
+#Dzielimy dane na zbiór uczący oraz testowy
+learning.set.index <- sample(1:n,2/3*n)
+learning.set <- iris[learning.set.index,]
+test.set <- iris[-learning.set.index,]
+
+X_learning<- cbind(rep(1,nrow(learning.set)),learning.set[,1:4])
+
+X_test<- cbind(rep(1,nrow(test.set)),test.set[,1:4])
+
+X_learning <- as.matrix(X_learning)
+X_test <- as.matrix(X_test)
+
+
+Y_learning<- matrix(0,nrow=nrow(learning.set),ncol=K)
+Y_test<-matrix(0,nrow = nrow(test.set),ncol=K)
+
+
+etykietki.learning<-as.numeric(learning.set$Species)
+for(k in 1:K){
+  Y_learning[etykietki.learning==k,k]<-1
+}
+#Tworzymy macierz estymowanych współczynników
+B<-solve(t(X_learning)%*%X_learning) %*% t(X_learning) %*% Y_learning
+
+#
+Y.hat_learning <- X_learning%*%B
+Y.hat_test <- X_test%*%B
+
+
+Y.hat<-rbind(Y.hat_learning,Y.hat_test)
+
+klasy <- levels(iris$Species)
+
+maks.ind <-apply(Y.hat,1,FUN=function(x) which.max(x))
+prognozowane.etykietki<-klasy[maks.ind][1:100]
+rzeczywiste.etykietki <-learning.set$Species
+
+macierz.pomylek <- table(rzeczywiste.etykietki,prognozowane.etykietki)
+#Macierz pomyłek oraz błąd klasyfikacji na zbiorze uczącym.
+macierz.pomylek
+1-sum(diag(macierz.pomylek))/100
+
+prognozowane.etykietki<-klasy[maks.ind][101:150]
+rzeczywiste.etykietki<-test.set$Species
+macierz.pomylek<-table(rzeczywiste.etykietki,prognozowane.etykietki)
+#Macierz pomyłek oraz błąd klasyfikacji na zbiorze testowym.
+macierz.pomylek
+1-sum(diag(macierz.pomylek))/50
+@
+Obserwujemy przysłanianie klasy Versinicolor przez klase virginica. Jak widzimy w macierzy około 1/3 przypadków z klasy versicolor jest prognozowana jako virginica.
+
+\section{Model regresji dla składników wielomianowych stopnia 2.}
+<<Zadanie1.e, echo=TRUE>>=
+
+X <- iris[, 1:4]
+
+# Utworzenie składników wielomianowych
+X_poly <- cbind( X^2, X[,1]*X[,2], X[,1]*X[,3], X[,1]*X[,4], X[,2]*X[,3], X[,2]*X[,4], X[,3]*X[,4],iris$Species)
+Y <- matrix(0, nrow = nrow(X), ncol = ncol(X_poly))
+
+colnames(X_poly)<-c("SL^2","SW^2","PL^2","PW^2","SL*SW","SL*PL","SL*PW","SW*PL","SW*PW","PL*PW","iris$Species"  )
+head(X_poly)
+
+set.seed(1)
+n<-nrow(X_poly)
+#Dzielimy na zbiór uczący oraz testowy
+learning.set.index <- sample(1:n,2/3*n)
+learning.set <- X_poly[learning.set.index,]
+test.set <- X_poly[-learning.set.index,]
+X_learning<- cbind(rep(1,nrow(learning.set[1:4])),learning.set[1:4])
+
+X_test<- cbind(rep(1,nrow(test.set[1:4])),test.set[1:4])
+
+X_learning <- as.matrix(X_learning)
+X_test <- as.matrix(X_test)
+
+
+Y_learning<- matrix(0,nrow=nrow(learning.set),ncol=K)
+Y_test<-matrix(0,nrow = nrow(test.set),ncol=K)
+
+
+etykietki.learning<-as.numeric(learning.set$`iris$Species`)
+for(k in 1:K){
+  Y_learning[etykietki.learning==k,k]<-1
+}
+
+B<-solve(t(X_learning)%*%X_learning) %*% t(X_learning) %*% Y_learning
+
+Y.hat_learning <- X_learning%*%B
+
+Y.hat_test <- X_test%*%B
+
+Y.hat<-rbind(Y.hat_learning,Y.hat_test)
+
+klasy <- levels(iris$Species)
+
+maks.ind <-apply(Y.hat,1,FUN=function(x) which.max(x))
+prognozowane.etykietki<-klasy[maks.ind][1:100]
+rzeczywiste.etykietki <-learning.set$`iris$Species`
+#Macierz pomyłek oraz błąd klasyfikacji na zbiorze uczącym.
+macierz.pomylek <- table(rzeczywiste.etykietki,prognozowane.etykietki)
+macierz.pomylek
+1-sum(diag(macierz.pomylek))/100
+
+#Macierz pomyłek oraz błąd klasyfikacji na zbiorze testowym.
+prognozowane.etykietki<-klasy[maks.ind][101:150]
+rzeczywiste.etykietki<-test.set$`iris$Species`
+macierz.pomylek<-table(rzeczywiste.etykietki,prognozowane.etykietki)
+macierz.pomylek
+1-sum(diag(macierz.pomylek))/50
+
+
+@
+Model liniowy dla rozszerzonej przestrzeni cech jest dokładniejszy od podstawowego ponieważ błąd klasyfikacji na zbiorze testowym jest mniejszy o  $\sim$10\%.
+
+\section{Zadanie2}
+<<Zadanie2 ,echo=TRUE>>=
+
+data(Glass)
+
+#Liczba przypadków- 214
+n<-length(Glass$Type)
+#Liczba cech- 9 
+length(names(Glass[1:9]))
+
+class(Glass$Type)
+#Liczba klas- 6. Klasa numer 4 nie jest zawarta w tej bazie danych.
+length(levels(Glass$Type))
+#1- oznacza przetworzone szkło z okna budnku
+#2- oznacza nieprzetworzone szkło z okna budnku
+#3- oznacza przetworzone szkło z okna pojazdu
+#4- oznacza nieprzetworzone szkło z okna pojazdu (Brak w tej bazie)
+#5- oznacza szklany pojemnik
+#6- oznacza szklaną zastawę stołową
+#7- oznacza reflektor
+levels(Glass$Type)
+
+str(Glass)
+#Wszystkie zmienne są typu num, z wyjątkiem Type, która jest typu factor.
+Glass.czestosc<-Glass$Type
+levels(Glass.czestosc)<-c("1. Okno_budynek_P","2. Okno_budynek_NP","3. Okno_Pojazd_P","5. Pojemnik","6. Zastawa","7. Reflektor")
+par(mai = c(2, 1, 1, 1))
+plot(Glass.czestosc,las=2,main="Częstość występowania w klasach")
+par(mai = c(1, 1, 1, 1))
+#Najczęściej występującymi klasami są: Klasa 2- 76 przypadków 
+#oraz klasa 1 - 70 przypadków
+#Obie te klasy dotyczą szkła z okna budynków. 
+#Wstępnie można uważać, że klasy te będzie ciężej rozróżnić.
+
+#Przypisując obserwacje do  najczęstszej grupy błąd klasyfikacyjny wynosi ~64.5%
+1-length(Glass[which(Glass$Type==2),][,1])/214
+dane<-Glass
+dane.numeryczne<-scale(dane[,1:9])
+#Obserwujemy istotne różnice w wariancji poszczególnych cech.
+#Musimy więc standaryzować dane.
+
+dane<-cbind(as.data.frame(dane.numeryczne),Type=dane[,10])
+boxplot(dane.numeryczne)
+
+
+
+plot_boxplot(Glass,by="Type")
+
+#Zmienne charakteryzujące które najgorzej separują obiekty to Rl oraz Si.
+@
+
+
+\subsection{Algorytm knn}
+<<Zadanie2 knn ,echo=TRUE>>=
+# Tworzymy zbiór uczący i testowy
+# dla k powtorzeń
+k=1000
+średnia=0
+for (i in 1:k){
+# losujemy obiekty do zbioru uczącego i testowego
+
+learning.set.index <- sample(1:n,2/3*n)
+n.learning <- nrow(learning.set)
+n.test <- nrow(test.set)
+
+learning.set <- dane[learning.set.index,]
+test.set     <- dane[-learning.set.index,]
+#Algorytm knn
+etykietki.rzecz <- test.set$Type
+etykietki.prog<-knn(learning.set[,-10],test.set[,-10],learning.set$Type,k=5)
+#Macierz pomyłek
+(wynik.tablica <- table(etykietki.prog,etykietki.rzecz))
+
+#Średni błąd klasyfikacyjny wynosi ~30%
+n.test <- dim(test.set)[1]
+a<-(n.test - sum(diag(wynik.tablica))) / n.test
+średnia=średnia +a
+
+}
+#Pojedynczy błąd klasyfikacyjny
+(n.test - sum(diag(wynik.tablica)))/n.test
+#Macierz pomyłek
+print(wynik.tablica)
+#Średni błąd klasyfikacyjny
+średnia/k->sr_knn
+sr_knn
+@
+\subsection{Algorytm drzewa klasyfikacyjnego}
+<<Zadanie2 Algorytm drzewa klasyfikacyjnego ,echo=TRUE>>=
+
+
+# Konstrukcja drzewa klasyfikacyjnego
+# Określamy formułę  modelu
+model <- Type ~ . # wszystkie cechy objaśniające
+k=100 # ile razy tworzymy zbiory uczące i testowe
+sr.test=0
+sr.learining=0
+
+for (i in 1:k){
+# losujemy obiekty do zbioru uczącego i testowego
+learning.set.index <- sample(1:n,2/3*n)
+n.learning <- nrow(learning.set)
+n.test <- nrow(test.set)
+learning.set <- dane[learning.set.index,]
+test.set     <- dane[-learning.set.index,]
+
+# budujemy drzewo (parametry domyślne)
+Glass.tree.simple <- rpart(model, data=learning.set)
+
+Glass.tree <- rpart(model, data=learning.set, control=rpart.control(cp=.03, minsplit=10, maxdepth=10))
+
+# prognozy dla zbioru uczącego
+pred.labels.learning <- predict(Glass.tree.simple, newdata=learning.set, type = "class")
+
+# prognozy dla zbioru testowego
+pred.labels.test <- predict(Glass.tree.simple, newdata=test.set, type = "class")
+
+# wyznaczenie prognozowanych prawdopodobieństw a posteriori
+pred.probs.test <- predict(Glass.tree.simple, newdata=test.set, type = "prob")
+conf.mat.learning <- table(pred.labels.learning, learning.set$Type)
+conf.mat.test <- table(pred.labels.test, test.set$Type)
+
+
+
+(error.rate.learning <- (n.learning - sum(diag(conf.mat.learning))) / n.learning)
+(error.rate.test <- (n.test - sum(diag(conf.mat.test))) / n.test)
+
+sr.learining = sr.learining + error.rate.learning
+sr.test = sr.test + error.rate.test
+}
+
+# Wizualizacja
+
+rpart.plot(Glass.tree.simple,xpd=TRUE, cex=.35)
+
+
+# Ocena dokładności klasyfikacji
+
+# macierz pomyłek (confusion matrix)
+#Zbiór testowy
+
+conf.mat.test
+
+#Zbiór uczący
+
+conf.mat.learning
+
+# błąd klasyfikacji (na zbiorze uczącym i testowy) dla pojedynczego podziału na zbiór uczący/testowy
+(error.rate.learning <- (n.learning - sum(diag(conf.mat.learning))) / n.learning)
+(error.rate.test <- (n.test - sum(diag(conf.mat.test))) / n.test)
+
+#Błąd klasyfikacji dla k podziałów na zbiory uczące/testowe 
+
+sr.learining/k
+sr.test/k->sr_drzewo
+sr_drzewo
+@
+\subsection{Naiwny klasyfikator bayesowski.}
+<<Zadanie2 Naiwny klasyfikator bayesowski ,echo=TRUE>>=
+
+
+k=100 # ile razy tworzymy zbiory uczące i testowe
+sr.test=0
+sr.learining=0
+
+for (i in 1:k){
+  
+# losujemy obiekty do zbioru uczącego i testowego
+learning.set.index <- sample(1:n,2/3*n)
+n.learning <- nrow(learning.set)
+n.test <- nrow(test.set)  
+learning.set <- dane[learning.set.index,]
+test.set     <- dane[-learning.set.index,]
+model.nb <- naiveBayes(Type~., data = learning.set)
+
+# prognozowane etykietki zbiór uczący
+pred.labels.nb.learn <- predict(model.nb, newdata = learning.set)
+
+# macierz pomyłek zbiór uczący
+conf.mat.nb.learning <- table(learning.set$Type, pred.labels.nb.learn)
+
+# błąd klasyfikacji na zbior uczący
+(blad.nb <- (n.learning-sum(diag(conf.mat.nb.learning)))/n.learning)
+sr.learining= sr.learining+blad.nb
+
+# prognozowane etykietki zbiór testowy
+pred.labels.nb.test <- predict(model.nb, newdata = test.set)
+
+# macierz pomyłek zbiór testowy
+conf.mat.nb.test <- table(test.set$Type, pred.labels.nb.test)
+
+# błąd klasyfikacji na zbior testowy
+(blad.nb <- (n.test-sum(diag(conf.mat.nb.test)))/n.test)
+sr.test = sr.test + blad.nb
+}
+
+# macierz pomyłek na zbiorze uczacym
+conf.mat.nb.learning
+
+# błąd klasyfikacji na zbiorze uczącym
+(blad.nb <- (n.learning-sum(diag(conf.mat.nb.learning)))/n.learning)
+
+
+# średni bład klasyfikacji na zbiorze uczącym dla k podziałów
+sr.learining/k
+
+# macierz pomyłek na zbiorze testowym
+conf.mat.nb <- table(test.set$Type, pred.labels.nb.test)
+conf.mat.nb
+# błąd klasyfikacji na zbiorze testowym
+(blad.nb <- (n.test-sum(diag(conf.mat.nb)))/n.test)
+
+# średni bład klasyfikacji na zbiorze testowym dla k podziałów
+sr.test/k->sr_bayes
+sr_bayes
+
+
+@
+<<podsmowanie metod,echo=TRUE,results='asis'>>=
+metody <- c("sr_knn", "sr_drzewo", "sr_bayes")
+values <- c(sr_knn, sr_drzewo,sr_bayes)
+data <- data.frame(metody, values)
+xtable_data <- xtable(data, caption = "Średnie wartości błędu algorytmów.")
+print(xtable_data)
+@
+Jak widzimy w tym przypadku najgorzej radzi sobie naiwna metoda bayesa z błędem na poziomie przypisania wszystkich obiektów do jednej klasy. Najlepiej radzą sobie metody drzewa klasyfikacyjnego oraz knn.
+\section{Testowanie metod dla różnych parametrów oraz podzbioru cech}
+
+
+<<Zadanie2e ,echo=TRUE>>=
+set.seed(123)
+learning.set.index <- sample(1:214,2/3*214)
+n.learning <- nrow(learning.set)
+n.test <- nrow(test.set)
+#Z poprzednich wniosków wiemy, że RI oraz Si najgorzej seprują dlatego nie bierzmy ich pod uwagę.
+
+learning.set <- dane[learning.set.index,c(2:4,6:10)]
+test.set     <- dane[-learning.set.index,c(2:4,6:10)]
+
+#Przetestujemy metodę k-NN dla róznych parametrów tj. ilość sąsiadów oraz porównamy błędy klasyfikacji
+
+
+my.predict  <- function(model, newdata) predict(model, newdata=newdata, type="class")
+my.ipredknn <- function(formula1, data1, ile.sasiadow) ipredknn(formula=formula1,data=data1,k=ile.sasiadow)
+
+# porownanie błędów klasyfikacji: cv, boot, .632plus
+errorest(Type ~., learning.set, model=my.ipredknn, predict=my.predict, estimator="cv",     est.para=control.errorest(k = 10), ile.sasiadow=5)
+errorest(Type ~., learning.set, model=my.ipredknn, predict=my.predict, estimator="boot",   est.para=control.errorest(nboot = 50), ile.sasiadow=5)
+errorest(Type ~., learning.set, model=my.ipredknn, predict=my.predict, estimator="632plus",est.para=control.errorest(nboot = 50), ile.sasiadow=5)
+
+errorest(Type ~., test.set, model=my.ipredknn, predict=my.predict, estimator="cv",     est.para=control.errorest(k = 10), ile.sasiadow=5)
+errorest(Type ~., test.set, model=my.ipredknn, predict=my.predict, estimator="boot",   est.para=control.errorest(nboot = 50), ile.sasiadow=5)
+errorest(Type ~., test.set, model=my.ipredknn, predict=my.predict, estimator="632plus",est.para=control.errorest(nboot = 50), ile.sasiadow=5)
+
+
+
+# Liczba sąsiadów a bład klasyfikacji 
+liczba.sasiadow.zakres <- 1:15
+library(ggplot2)
+
+# Wykres dla zbioru uczącego
+wyniki_uczace <- sapply(liczba.sasiadow.zakres, function(k)
+  errorest(Type ~., learning.set, model=my.ipredknn, predict=my.predict, estimator="632plus", est.para=control.errorest(k = 3), ile.sasiadow=k)$error)
+
+df_uczace <- data.frame(k = liczba.sasiadow.zakres, błąd_klasyfikacji = wyniki_uczace)
+
+ggplot(df_uczace, aes(x = k, y = błąd_klasyfikacji)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Liczba sąsiadów a błąd klasyfikacji - zbiór uczący",
+       x = "k (liczba sąsiadów)",
+       y = "błąd klasyfikacji")
+
+
+# Wykres dla zbioru testowego
+wyniki_testowe <- sapply(liczba.sasiadow.zakres, function(k)
+  errorest(Type ~., test.set, model=my.ipredknn, predict=my.predict, estimator="632plus", est.para=control.errorest(k = 3), ile.sasiadow=k)$error)
+
+df_testowe <- data.frame(k = liczba.sasiadow.zakres, błąd_klasyfikacji = wyniki_testowe)
+
+ggplot(df_testowe, aes(x = k, y = błąd_klasyfikacji)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Liczba sąsiadów a błąd klasyfikacji - zbiór testowy",
+       x = "k (liczba sąsiadów)",
+       y = "błąd klasyfikacji")
+
+
+
+@
+Błąd klasyfikacyjny pogorszył się po usunięciu cech. Dla parametru 632plus bład na zbiorze testowym jest najmniejszy. Błąd rośnie również z liczbą sąsiadów. Dlatego aby otrzymać najlepsze wyniki należy wziąć po uwagę wszystkie cechy, wybrać metodę knn lub drzewa klasyfikacyjnego. Dla knn należy wybrać parametr 632plus oraz wybrać jak najmniejszą liczbę sąsiadów.
+
+\begin{thebibliography}{9}
+
+\bibitem{Dalgard2008}
+  Peter Dalgaard, \emph{Introductory Statistics with R}, Springer-Verlag New York, 2008.
+
+\bibitem{LaTeXkurs}
+Ryszard Paweł Kostecki, \emph{W miarę krótki i praktyczny kurs \LaTeX-a w $\pi^e$ minut}, \url{http://www.fuw.edu.pl/~kostecki/kurs_latexa.pdf}, 2008.
+
+\end{thebibliography}
+
+
+\end{document}
